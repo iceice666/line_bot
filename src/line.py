@@ -1,2 +1,3 @@
-CHANNEL_SERECT: str = ""
+CHANNEL_SECRET: str = ""
 CHANNEL_ACCESS_TOKEN: str = ""
+
