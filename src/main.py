@@ -17,6 +17,7 @@ import sys
 from argparse import ArgumentParser
 
 from flask import Flask, request, abort
+
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging.models.demographic_filter import pprint
@@ -32,7 +33,9 @@ from linebot.v3.messaging import (
     TextMessage,
 )
 
-app = Flask(__name__)
+
+app = Flask("LineAIBot")
+
 
 # get channel_secret and channel_access_token from your environment variable
 channel_secret = os.getenv("LINE_CHANNEL_SECRET", None)
@@ -49,7 +52,7 @@ handler = WebhookHandler(channel_secret)
 configuration = Configuration(access_token=channel_access_token)
 
 
-@app.route("/callback", methods=["POST"])
+@app.route("/", methods=["POST"])
 def callback():
     # get X-Line-Signature header value
     signature = request.headers["X-Line-Signature"]
@@ -72,20 +75,39 @@ import ai
 artificial_intelligence = ai.AI()
 
 
+HELP_MSG = """
+$help   => Show this message
+$reset  => Clear all content
+$prompt => Print current content
+"""
+
+
 @handler.add(MessageEvent, message=TextMessageContent)
 def message_text(event):
     fetched_message: str = event.message.text
 
     ## check special args
-    if fetched_message.startswith("#reset"):
-        artificial_intelligence.reset()
-        replay = "! All prompts cleared !"
+    if fetched_message.startswith("$"):
+        if fetched_message == "$help":
+            reply = HELP_MSG
 
-    elif fetched_message.startswith("#prompt"):
-        replay = pprint.pformat(artificial_intelligence.prompt)
+        if fetched_message == "$$INIT$$":
+            artificial_intelligence.reset()
+            artificial_intelligence.init()
+            return
 
+        elif fetched_message == "$reset":
+            artificial_intelligence.reset()
+            reply = "[! All prompts cleared !]"
+
+        elif fetched_message == "$prompt":
+            reply = pprint.pformat(artificial_intelligence.prompt)
+            app.logger.info(reply)
+
+        else:
+            reply = HELP_MSG
     else:
-        replay = artificial_intelligence.ask(fetched_message)
+        reply = artificial_intelligence.ask(fetched_message)
 
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
@@ -95,7 +117,7 @@ def message_text(event):
                 notificationDisabled=False,
                 messages=[
                     TextMessage(
-                        text=replay,
+                        text=reply,
                         quickReply=None,
                         quoteToken=None,
                     )
@@ -108,7 +130,7 @@ if __name__ == "__main__":
     arg_parser = ArgumentParser(
         usage="Usage: python " + __file__ + " [--port <port>] [--help]"
     )
-    arg_parser.add_argument("-p", "--port", default=8000, help="port")
+    arg_parser.add_argument("-p", "--port", default=8888, help="port")
     arg_parser.add_argument("-d", "--debug", default=False, help="debug")
     options = arg_parser.parse_args()
 
